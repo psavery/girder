@@ -33,7 +33,6 @@ module.exports = function (grunt) {
     // Get and validate options
     const progress = !isTrue(grunt.option('no-progress'));
     const isWatch = isTrue(grunt.option('watch'));
-    console.log(isWatch)
     const pollingWatch = isTrue(process.env.WATCH_USEPOLLING);
     const isDev = grunt.config.get('environment') === 'dev' || isWatch;
 
@@ -46,8 +45,9 @@ module.exports = function (grunt) {
 
     // TODO: nyc will only instrument source files within it's cwd (it resolves symlinks).
     // This will cause problems when we try to instrument plugins that are not present
-    // inside girder's source tree.
-    process.env.NYC_CWD = path.resolve(fs.realpathSync(__dirname), '..');
+    // inside girder's source tree.  Here we set it to the root of the repository to
+    // resolve plugin sources.
+    process.env.NYC_CWD = path.resolve(fs.realpathSync(__dirname), '..', '..', '..');
 
     // Load the global webpack config
     const webpackConfig = require('./webpack.config.js');
@@ -203,6 +203,20 @@ module.exports = function (grunt) {
     plugins.forEach(function (plugin) {
         const pluginDef = require(path.join(plugin, '/package.json'))['girder-plugin'];
         const name = pluginDef.name;
+        const babelRule = {
+            resource: {
+                test: /\.js$/,
+                include: [path.resolve(`node_modules/${plugin}`)],
+                exclude: new RegExp(`node_modules/${plugin}/node_modules`)
+            },
+            use: [{
+                loader: 'babel-loader',
+                options: {
+                    presets: [require.resolve('babel-preset-env')],
+                    cacheDirectory: true
+                }
+            }]
+        };
         grunt.config.set(`webpack.plugin_${name}`, {
             entry: {
                 [`plugins/${name}/plugin`]: [`${plugin}/main.js`]
@@ -211,6 +225,9 @@ module.exports = function (grunt) {
                 path: path.resolve(grunt.config.get('builtPath'), 'plugins', name),
                 filename: 'plugin.min.js',
                 library: `girder_plugin_${name}`
+            },
+            module: {
+                rules: [babelRule]
             },
             plugins: [
                 new webpack.DllPlugin({
