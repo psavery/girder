@@ -47,20 +47,40 @@ elif not os.path.exists(os.path.join(_GIRDER_BUILD_ASSETS_PATH, 'Gruntfile.js'))
 @click.command(name='build', help='Build web client static assets.')
 @click.option('--dev/--no-dev', default=False,
               help='Build girder client for development.')
-def main(dev):
+@click.option('--watch', default=False, is_flag=True,
+              help='Build girder library bundle in watch mode (implies --dev).')
+@click.option('--skip-install', default=False, is_flag=True,
+              help='Skip npm install step if node_modules exists.')
+def main(dev, watch, skip_install):
+    if watch:
+        dev = True
     staging = _GIRDER_STAGING_PATH
     _generateStagingArea(staging, dev)
 
-    # The autogeneration of package.json breaks how package-lock.json is
-    # intended to work.  If we don't delete it first, you will frequently
-    # get "file doesn't exist" errors.
-    npmLockFile = os.path.join(staging, 'package-lock.json')
-    if os.path.exists(npmLockFile):
-        os.unlink(npmLockFile)
+    if not os.path.isdir(os.path.join(staging, 'node_modules')) or not skip_install:
+        # The autogeneration of package.json breaks how package-lock.json is
+        # intended to work.  If we don't delete it first, you will frequently
+        # get "file doesn't exist" errors.
+        npmLockFile = os.path.join(staging, 'package-lock.json')
+        if os.path.exists(npmLockFile):
+            os.unlink(npmLockFile)
 
-    check_call(['npm', 'install'], cwd=staging)
+        check_call(['npm', 'install'], cwd=staging)
+
+    if dev and (
+            not os.path.isdir(os.path.join(_GIRDER_BUILD_ASSETS_PATH, 'node_modules'))
+            or not skip_install):
+        # TODO: This is a hack to make many of the cmake based runners, which run
+        # from girder's source tree to include necessary development npm libraries.
+        # In the future, we could either limit the number of dependencies are in the
+        # top-level girder repo, or move things like eslint checking and web client
+        # test running into the staging area.
+        check_call(['npm', 'install'], cwd=_GIRDER_BUILD_ASSETS_PATH)
+
     buildCommand = [
         'npx', '-n', '--preserve-symlinks', 'grunt', '--static-path=%s' % STATIC_ROOT_DIR]
+    if watch:
+        buildCommand.append('--watch')
     if dev:
         buildCommand.append('--env=dev')
     else:
@@ -74,15 +94,6 @@ def _linkTestFiles(staging):
     if os.path.exists(target):
         os.unlink(target)
     os.symlink(source, target)
-
-
-def _npmInstallGirderSourcePath():
-    # TODO: This is a hack to make many of the cmake based runners, which run
-    # from girder's source tree to include necessary development npm libraries.
-    # In the future, we could either limit the number of dependencies are in the
-    # top-level girder repo, or move things like eslint checking and web client
-    # test running into the staging area.
-    check_call(['npm', 'install'], cwd=_GIRDER_BUILD_ASSETS_PATH)
 
 
 def _generateStagingArea(staging, dev):
@@ -106,7 +117,6 @@ def _generateStagingArea(staging, dev):
     os.symlink(source, target)
 
     if dev:
-        _npmInstallGirderSourcePath()
         _linkTestFiles(staging)
 
 

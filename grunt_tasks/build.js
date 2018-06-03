@@ -33,6 +33,7 @@ module.exports = function (grunt) {
     // Get and validate options
     const progress = !isTrue(grunt.option('no-progress'));
     const isWatch = isTrue(grunt.option('watch'));
+    console.log(isWatch)
     const pollingWatch = isTrue(process.env.WATCH_USEPOLLING);
     const isDev = grunt.config.get('environment') === 'dev' || isWatch;
 
