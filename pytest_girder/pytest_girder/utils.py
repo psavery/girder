@@ -1,21 +1,30 @@
 import asyncore
 import base64
 import cherrypy
+import codecs
 import email
 import errno
+import io
 import json
 import os
 import six
 import smtpd
 import socket
+import sys
 import threading
 import time
+import uuid
 
 from six import BytesIO
 from six.moves import queue, range, urllib
 
+from girder.api.rest import setContentDisposition
+from girder.models.token import Token
+
 _startPort = 31000
 _maxTries = 100
+local = cherrypy.lib.httputil.Host('127.0.0.1', 30000)
+remote = cherrypy.lib.httputil.Host('127.0.0.1', 30001)
 
 
 class MockSmtpServer(smtpd.SMTPServer):
@@ -117,6 +126,61 @@ class MockSmtpReceiver(object):
             time.sleep(0.1)
 
 
+class MultipartFormdataEncoder(object):
+    """
+    This class is adapted from http://stackoverflow.com/a/18888633/2550451
+
+    It is used as a helper for creating multipart/form-data requests to
+    simulate file uploads.
+    """
+    def __init__(self):
+        self.boundary = uuid.uuid4().hex
+        self.contentType = 'multipart/form-data; boundary=%s' % self.boundary
+
+    @classmethod
+    def u(cls, s):
+        if sys.hexversion < 0x03000000 and isinstance(s, str):
+            s = s.decode('utf-8')
+        if sys.hexversion >= 0x03000000 and isinstance(s, bytes):
+            s = s.decode('utf-8')
+        return s
+
+    def iter(self, fields, files):
+        encoder = codecs.getencoder('utf-8')
+        for (key, value) in fields:
+            key = self.u(key)
+            yield encoder('--%s\r\n' % self.boundary)
+            yield encoder(self.u('Content-Disposition: form-data; '
+                                 'name="%s"\r\n') % key)
+            yield encoder('\r\n')
+            if isinstance(value, int) or isinstance(value, float):
+                value = str(value)
+            yield encoder(self.u(value))
+            yield encoder('\r\n')
+        for (key, filename, content) in files:
+            key = self.u(key)
+            filename = self.u(filename)
+            yield encoder('--%s\r\n' % self.boundary)
+            disposition = setContentDisposition(filename, 'form-data; name="%s"' % key, False)
+            yield encoder(self.u('Content-Disposition: ') + self.u(disposition))
+            yield encoder('Content-Type: application/octet-stream\r\n')
+            yield encoder('\r\n')
+
+            yield (content, len(content))
+            yield encoder('\r\n')
+        yield encoder('--%s--\r\n' % self.boundary)
+
+    def encode(self, fields, files):
+        body = io.BytesIO()
+        size = 0
+        for chunk, chunkLen in self.iter(fields, files):
+            if not isinstance(chunk, six.binary_type):
+                chunk = chunk.encode('utf8')
+            body.write(chunk)
+            size += chunkLen
+        return self.contentType, body.getvalue(), size
+
+
 def getResponseBody(response, text=True):
     """
     Returns the response body as a text type or binary string.
@@ -170,8 +234,6 @@ def request(path='/', method='GET', params=None, user=None,
     :type appPrefix: str
     :returns: The cherrypy response object from the request.
     """
-    local = cherrypy.lib.httputil.Host('127.0.0.1', 30000)
-    remote = cherrypy.lib.httputil.Host('127.0.0.1', 30001)
     headers = [('Host', '127.0.0.1'), ('Accept', 'application/json')]
     qs = fd = None
 
@@ -250,3 +312,107 @@ def buildHeaders(headers, cookie, user, token, basicAuth, authHeader):
         headers.append((authHeader, 'Basic %s' % auth.decode()))
 
     return headers
+
+
+def _genToken(user):
+    """
+    Helper method for creating an authentication token for the user.
+    """
+
+    token = Token().createToken(user)
+    return str(token['_id'])
+
+
+def multipartRequest(fields, files, path, method='POST', user=None,
+                     prefix='/api/v1', isJson=True, token=None):
+    """
+    Make an HTTP request with multipart/form-data encoding. This can be
+    used to send files with the request.
+
+    :param fields: List of (name, value) tuples.
+    :param files: List of (name, filename, content) tuples.
+    :param path: The path part of the URI.
+    :type path: str
+    :param method: The HTTP method.
+    :type method: str
+    :param prefix: The prefix to use before the path.
+    :param isJson: Whether the response is a JSON object.
+    :param token: Auth token to use.
+    :type token: str
+    :returns: The cherrypy response object from the request.
+    """
+    contentType, body, size = MultipartFormdataEncoder().encode(fields, files)
+
+    headers = [('Host', '127.0.0.1'),
+               ('Accept', 'application/json'),
+               ('Content-Type', contentType),
+               ('Content-Length', str(size))]
+
+    app = cherrypy.tree.apps['']
+    request, response = app.get_serving(local, remote, 'http', 'HTTP/1.1')
+    request.show_tracebacks = True
+
+    if token is not None:
+        headers.append(('Girder-Token', token))
+    elif user is not None:
+        headers.append(('Girder-Token', _genToken(user)))
+
+    fd = io.BytesIO(body)
+    # Python2 will not match Unicode URLs
+    url = str(prefix + path)
+    try:
+        response = request.run(method, url, None, 'HTTP/1.1', headers, fd)
+    finally:
+        fd.close()
+
+    if isJson:
+        body = getResponseBody(response)
+        try:
+            response.json = json.loads(body)
+        except ValueError:
+            raise AssertionError('Did not receive JSON response')
+
+    if response.output_status.startswith(b'500'):
+        raise AssertionError("Internal server error: %s" %
+                             getResponseBody(response))
+
+    return response
+
+
+def uploadFile(name, contents, user, parent, parentType='folder',
+               mimeType=None):
+    """
+    Upload a file. This is meant for small testing files, not very large
+    files that should be sent in multiple chunks.
+
+    :param name: The name of the file.
+    :type name: str
+    :param contents: The file contents
+    :type contents: str
+    :param user: The user performing the upload.
+    :type user: dict
+    :param parent: The parent document.
+    :type parent: dict
+    :param parentType: The type of the parent ("folder" or "item")
+    :type parentType: str
+    :param mimeType: Explicit MIME type to set on the file.
+    :type mimeType: str
+    :returns: The file that was created.
+    :rtype: dict
+    """
+    mimeType = mimeType or 'application/octet-stream'
+    resp = request(
+        path='/file', method='POST', user=user, params={
+            'parentType': parentType,
+            'parentId': str(parent['_id']),
+            'name': name,
+            'size': len(contents),
+            'mimeType': mimeType
+        })
+
+    fields = [('offset', 0), ('uploadId', resp.json['_id'])]
+    files = [('chunk', name, contents)]
+    resp = multipartRequest(
+        path='/file/chunk', user=user, fields=fields, files=files)
+
+    return resp.json
