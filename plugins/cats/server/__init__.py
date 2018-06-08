@@ -1,6 +1,7 @@
 from girder.api import access
-from girder.api.rest import Resource, Prefix
+from girder.constants import AccessType, registerAccessFlag
 from girder.api.describe import Description, autoDescribeRoute
+from girder.api.rest import Resource, Prefix
 
 class Cat(Resource):
     def __init__(self):
@@ -12,6 +13,7 @@ class Cat(Resource):
         self.route('POST', (), self.createCat)
         self.route('PUT', (':id',), self.updateCat)
         self.route('DELETE', (':id',), self.deleteCat)
+        self.route('PUT', (':id', 'feed'), self.feedCat)
 
     @access.public
     @autoDescribeRoute(
@@ -36,6 +38,7 @@ class Cat(Resource):
         cat = Cat().save(body, validate=False)
         return cat
 
+    @access.public
     @autoDescribeRoute(
     Description('Update a cat')
     .param('id', 'The cat ID', paramType='path'))
@@ -44,6 +47,7 @@ class Cat(Resource):
         print('id is', id)
         print('params is', params)
 
+    @access.public
     @autoDescribeRoute(
     Description('Delete a cat')
     .param('id', 'The cat ID', paramType='path'))
@@ -51,6 +55,18 @@ class Cat(Resource):
         print('deleteCat() was called!')
         print('id is', id)
         print('params is', params)
+
+    registerAccessFlag(key='cat.feed', name='Feed a cat',
+                       description='Allows users to feed a cat')
+
+    @access.user
+    @autoDescribeRoute(
+    Description('Feed a cat')
+    .modelParam('id', 'The cat ID', model='cat', plugin='cats',
+                 level=AccessType.WRITE, requiredFlags='cat.feed'))
+    def feedCat(self, cat, params):
+        print("You have fed the cats!")
+
 
 def load(info):
     info['apiRoot'].cat = Cat()
