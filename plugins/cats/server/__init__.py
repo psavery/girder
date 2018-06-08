@@ -22,22 +22,31 @@ class Cat(Resource):
 
     @access.public
     @autoDescribeRoute(
-    Description('Find a cat')
-    .param('id', 'The item ID', paramType='path'))
+    Description('Get a cat')
+    .param('id', 'The cat ID', paramType='path'))
     def getCat(self, id, params):
         print('getCat() was called!')
         print('id is', id)
         print('params is', params)
 
+    @access.public
+    @autoDescribeRoute(
+    Description('Create a cat'))
     def createCat(self, params):
         cat = Cat().save(body, validate=False)
         return cat
 
+    @autoDescribeRoute(
+    Description('Update a cat')
+    .param('id', 'The cat ID', paramType='path'))
     def updateCat(self, id, params):
         print('updateCat() was called!')
         print('id is', id)
         print('params is', params)
 
+    @autoDescribeRoute(
+    Description('Delete a cat')
+    .param('id', 'The cat ID', paramType='path'))
     def deleteCat(self, id, params):
         print('deleteCat() was called!')
         print('id is', id)
