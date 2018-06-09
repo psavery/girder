@@ -27,8 +27,8 @@ class CatResource(Resource):
     @access.public
     @autoDescribeRoute(
     Description('Get a cat')
-    .param('id', 'The cat ID', paramType='path'))
-    def getCat(self, id, params):
+    .modelParam('id', 'The cat ID', model=CatModel, level=AccessType.READ))
+    def getCat(self, params):
         print('getCat() was called!')
         print('id is', id)
         print('params is', params)
@@ -44,20 +44,18 @@ class CatResource(Resource):
     @access.public
     @autoDescribeRoute(
     Description('Update a cat')
-    .param('id', 'The cat ID', paramType='path'))
-    def updateCat(self, id, params):
-        print('updateCat() was called!')
-        print('id is', id)
+    .modelParam('id', 'The cat ID', model=CatModel, level=AccessType.WRITE))
+    def updateCat(self, params):
         print('params is', params)
+        print('updateCat() was called!')
 
     @access.public
     @autoDescribeRoute(
     Description('Delete a cat')
-    .param('id', 'The cat ID', paramType='path'))
-    def deleteCat(self, id, params):
-        print('deleteCat() was called!')
-        print('id is', id)
+    .modelParam('id', 'The cat ID', model=CatModel, level=AccessType.WRITE))
+    def deleteCat(self, params):
         print('params is', params)
+        print('deleteCat() was called!')
 
     registerAccessFlag(key='cat.feed', name='Feed a cat',
                        description='Allows users to feed a cat')
@@ -68,6 +66,19 @@ class CatResource(Resource):
     .modelParam('id', 'The cat ID', model=CatModel, plugin='cats',
                  level=AccessType.WRITE, requiredFlags='cat.feed'))
     def feedCat(self, params):
+        print("params is", params)
+        if 'cat_model' not in params:
+            print("Error: no cat model in the parameter!")
+            return
+
+        catModel = params['cat_model']
+        if '_id' not in catModel:
+            print("Error: missing id from catModel!")
+            return
+
+        id = catModel['_id']
+
+        print("id is", id)
         print("You have fed the cat!")
 
 
