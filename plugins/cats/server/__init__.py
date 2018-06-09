@@ -46,7 +46,19 @@ class CatResource(Resource):
     Description('Update a cat')
     .modelParam('id', 'The cat ID', model=CatModel, level=AccessType.WRITE))
     def updateCat(self, params):
-        print('params is', params)
+        print("params is", params)
+        if 'cat_model' not in params:
+            print("Error: no cat model in the parameter!")
+            return
+
+        catModel = params['cat_model']
+        if '_id' not in catModel:
+            print("Error: missing id from catModel!")
+            return
+
+        id = catModel['_id']
+
+        print("id is", id)
         print('updateCat() was called!')
 
     @access.public
@@ -64,22 +76,14 @@ class CatResource(Resource):
     @autoDescribeRoute(
     Description('Feed a cat')
     .modelParam('id', 'The cat ID', model=CatModel, plugin='cats',
-                 level=AccessType.WRITE, requiredFlags='cat.feed'))
-    def feedCat(self, params):
-        print("params is", params)
-        if 'cat_model' not in params:
-            print("Error: no cat model in the parameter!")
-            return
+                 level=AccessType.WRITE, requiredFlags='cat.feed',
+                 destName='catModel'))
+    def feedCat(self, catModel, params):
+        print('catModel is', catModel)
+        print('params is', params)
 
-        catModel = params['cat_model']
-        if '_id' not in catModel:
-            print("Error: missing id from catModel!")
-            return
-
-        id = catModel['_id']
-
-        print("id is", id)
-        print("You have fed the cat!")
+        # Feed the cat
+        #catModel.feed()
 
 
 def load(info):
