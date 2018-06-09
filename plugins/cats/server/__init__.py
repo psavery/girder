@@ -1,11 +1,13 @@
 from girder.api import access
 from girder.constants import AccessType, registerAccessFlag
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource, Prefix
+from girder.api.rest import Resource
 
-class Cat(Resource):
+from girder.plugins.cats.models.cat_model import CatModel
+
+class CatResource(Resource):
     def __init__(self):
-        super(Cat, self).__init__()
+        super(CatResource, self).__init__()
         self.resourceName = 'cat'
 
         self.route('GET', (), self.findCat)
@@ -35,8 +37,9 @@ class Cat(Resource):
     @autoDescribeRoute(
     Description('Create a cat'))
     def createCat(self, params):
-        cat = Cat().save(body, validate=False)
-        return cat
+        document = {}
+        catModel = CatModel().save(document, validate=False)
+        return catModel
 
     @access.public
     @autoDescribeRoute(
@@ -62,13 +65,11 @@ class Cat(Resource):
     @access.user
     @autoDescribeRoute(
     Description('Feed a cat')
-    .modelParam('id', 'The cat ID', model='cat', plugin='cats',
+    .modelParam('id', 'The cat ID', model=CatModel, plugin='cats',
                  level=AccessType.WRITE, requiredFlags='cat.feed'))
-    def feedCat(self, cat, params):
-        print("You have fed the cats!")
+    def feedCat(self, params):
+        print("You have fed the cat!")
 
 
 def load(info):
-    info['apiRoot'].cat = Cat()
-    #info['apiRoot'].meow = Prefix()
-    #info['apiRoot'].meow.cat = Cat()
+    info['apiRoot'].cat = CatResource()
