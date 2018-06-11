@@ -38,7 +38,7 @@ class CatResource(Resource):
     Description('Create a cat'))
     def createCat(self, params):
         document = {}
-        catModel = CatModel().save(document, validate=False)
+        catModel = CatModel().save(document)
         return catModel
 
     @access.public

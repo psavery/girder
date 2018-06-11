@@ -4,8 +4,9 @@ class CatModel(AccessControlledModel):
     def initialize(self):
         self.name = 'cat_model'
         self.ensureIndex('name')
-        self.fed = False
 
-    def feed():
-        self.fed = True
+    def validate(self, doc):
+        return doc
+
+    def feed(cat):
         print('A cat has been fed!')
