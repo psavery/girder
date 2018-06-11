@@ -65,12 +65,12 @@ class CatResource(Resource):
     @autoDescribeRoute(
     Description('Delete a cat')
     .modelParam('id', 'The cat ID', model=CatModel, level=AccessType.WRITE,
-                destName='catModel'))
-    def deleteCat(self, catModel, params):
-        print('catModel is', catModel)
+                destName='doc'))
+    def deleteCat(self, doc, params):
+        print('doc is', doc)
         print('params is', params)
         print('deleteCat() was called!')
-        CatModel().remove(catModel)
+        CatModel().remove(doc)
 
     registerAccessFlag(key='cat.feed', name='Feed a cat',
                        description='Allows users to feed a cat')
@@ -80,9 +80,9 @@ class CatResource(Resource):
     Description('Feed a cat')
     .modelParam('id', 'The cat ID', model=CatModel, plugin='cats',
                  level=AccessType.WRITE, requiredFlags='cat.feed',
-                 destName='catModel'))
-    def feedCat(self, catModel, params):
-        print('catModel is', catModel)
+                 destName='doc'))
+    def feedCat(self, doc, params):
+        print('doc is', doc)
         print('params is', params)
 
         # Feed the cat
