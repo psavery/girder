@@ -8,5 +8,7 @@ class CatModel(AccessControlledModel):
     def validate(self, doc):
         return doc
 
-    def feed(cat):
+    def feed(self, doc):
+        doc['feed'] = True
         print('A cat has been fed!')
+        self.save(doc)
