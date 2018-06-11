@@ -64,10 +64,13 @@ class CatResource(Resource):
     @access.public
     @autoDescribeRoute(
     Description('Delete a cat')
-    .modelParam('id', 'The cat ID', model=CatModel, level=AccessType.WRITE))
-    def deleteCat(self, params):
+    .modelParam('id', 'The cat ID', model=CatModel, level=AccessType.WRITE,
+                destName='catModel'))
+    def deleteCat(self, catModel, params):
+        print('catModel is', catModel)
         print('params is', params)
         print('deleteCat() was called!')
+        CatModel().remove(catModel)
 
     registerAccessFlag(key='cat.feed', name='Feed a cat',
                        description='Allows users to feed a cat')
