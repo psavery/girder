@@ -9,6 +9,14 @@ class CatModel(AccessControlledModel):
         return doc
 
     def feed(self, doc):
-        doc['feed'] = True
+
+        query = {
+            '_id': doc['_id']
+        }
+
+        updates = {
+            '$set': { 'fed': True }
+        }
+
+        self.update(query, updates, multi=False)
         print('A cat has been fed!')
-        self.save(doc)
