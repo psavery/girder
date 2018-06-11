@@ -18,5 +18,5 @@ class CatModel(AccessControlledModel):
             '$set': { 'fed': True }
         }
 
-        self.update(query, updates, multi=False)
-        print('A cat has been fed!')
+        print('A cat is being fed!')
+        return self.update(query, updates, multi=False)

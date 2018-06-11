@@ -86,7 +86,7 @@ class CatResource(Resource):
         print('params is', params)
 
         # Feed the cat
-        CatModel().feed(doc)
+        return CatModel().feed(doc)
 
 
 def load(info):
